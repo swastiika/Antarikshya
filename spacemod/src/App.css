@@ -1,5 +1,6 @@
 .button-container{
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
@@ -13,4 +14,7 @@
   border-radius: 5px;
   cursor: pointer;
   transition: background-color 0.3s ease;
+}
+.text-1{
+  color: beige;
 }
