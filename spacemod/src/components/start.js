@@ -9,105 +9,215 @@ const Sphere = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Renderer setup
+    // Renderer setup with better shadows
     const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
 
     // Camera setup
-    const fov = 75;
-    const aspect = window.innerWidth / window.innerHeight;
-    const near = 0.1;
-    const far = 100;
-    const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
-    camera.position.set(0, 15, 30);
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000
+    );
+    camera.position.set(0, 50, 100);
 
     // Scene setup
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000000); // Black background
 
-    // Light setup
-    const light = new THREE.DirectionalLight(0xFFFFFF, 3);
-    light.position.set(-1, 2, 4);
-    scene.add(light);
-    const ambientLight = new THREE.AmbientLight(0x404040);
+    // Enhanced lighting setup
+    const sunLight = new THREE.PointLight(0xFFFFFF, 3, 1000);
+    sunLight.position.set(0, 0, 0);
+    scene.add(sunLight);
+
+    // Add multiple ambient lights for better overall illumination
+    const ambientLight = new THREE.AmbientLight(0xFFFFFF, 0.5);
     scene.add(ambientLight);
+
+    // Add hemispheric light for better top-down illumination
+    const hemisphereLight = new THREE.HemisphereLight(0xFFFFFF, 0x444444, 1);
+    scene.add(hemisphereLight);
+
+    // Create a clock for timing
+    const clock = new THREE.Clock();
+    clock.start(); // Explicitly start the clock
 
     // Orbit Controls
     const controls = new OrbitControls(camera, canvas);
     controls.enableDamping = true;
-    controls.dampingFactor = 1;
+    controls.dampingFactor = 0.05;
     controls.enableZoom = true;
-    controls.minDistance = 2;
-    controls.maxDistance = 50;
-    controls.enablePan = false;
-    controls.update();
+    controls.minDistance = 10;
+    controls.maxDistance = 500;
+    controls.enablePan = true;
 
-    // Function to create an orbit line
+    // Create Sun with stronger emission
+    const createSun = () => {
+      const sunGeometry = new THREE.SphereGeometry(3, 32, 32);
+      const sunMaterial = new THREE.MeshBasicMaterial({
+        color: 0xFDB813,
+        emissive: 0xFDB813,
+        emissiveIntensity: 2
+      });
+      const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+      scene.add(sun);
+      return sun;
+    };
+
+    // Function to create an orbit line with better visibility
     function createOrbit(radius) {
       const orbitPoints = [];
-      const segments = 100; // Number of points in the orbit
+      const segments = 128;
 
       for (let i = 0; i <= segments; i++) {
         const theta = (i / segments) * Math.PI * 2;
-        orbitPoints.push(new THREE.Vector3(Math.cos(theta) * radius, 0, Math.sin(theta) * radius));
+        orbitPoints.push(new THREE.Vector3(
+          Math.cos(theta) * radius,
+          0,
+          Math.sin(theta) * radius
+        ));
       }
 
       const orbitGeometry = new THREE.BufferGeometry().setFromPoints(orbitPoints);
-      const orbitMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.5, transparent: true });
+      const orbitMaterial = new THREE.LineBasicMaterial({
+        color: 0x666666,
+        opacity: 0.5,
+        transparent: true
+      });
       const orbit = new THREE.Line(orbitGeometry, orbitMaterial);
-
       scene.add(orbit);
     }
 
-    function makeInstance({ radius, color, position, rotationSpeed }) {
+    function makeInstance({ radius, color, orbitRadius, rotationSpeed, revolutionSpeed }) {
       const geometry = new THREE.SphereGeometry(radius, 32, 32);
-      const material = new THREE.MeshPhongMaterial({ color, shininess: 30 });
+      const material = new THREE.MeshStandardMaterial({
+        color: color,
+        metalness: 0.3,
+        roughness: 0.7,
+        emissive: color,
+        emissiveIntensity: 0.1
+      });
       const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(position.x, position.y, position.z);
-      mesh.rotationSpeed = rotationSpeed;
-
-      scene.add(mesh);
-      return mesh;
+      
+      const pivot = new THREE.Object3D();
+      scene.add(pivot);
+      pivot.add(mesh);
+      mesh.position.x = orbitRadius;
+      
+      return { mesh, pivot, rotationSpeed, revolutionSpeed };
     }
 
-    // Define planets with their properties
     const planetsData = [
-      { radius: 0.8, color: 0xC0C0C0, position: { x: -16, y: 0, z: 0 }, rotationSpeed: 0.005 },
-      { radius: 1.2, color: 0xFFD700, position: { x: -12, y: 0, z: 0 }, rotationSpeed: 0.004 },
-      { radius: 1.3, color: 0x4169E1, position: { x: -8, y: 0, z: 0 }, rotationSpeed: 0.003 },
-      { radius: 1.1, color: 0xFF4500, position: { x: -4, y: 0, z: 0 }, rotationSpeed: 0.0035 },
-      { radius: 2.5, color: 0xFFA500, position: { x: 0, y: 0, z: 0 }, rotationSpeed: 0.002 }, // Sun
-      { radius: 1.5, color: 0xDAA520, position: { x: 4, y: 0, z: 0 }, rotationSpeed: 0.0025 },
-      { radius: 1.8, color: 0x40E0D0, position: { x: 8, y: 0, z: 0 }, rotationSpeed: 0.003 },
-      { radius: 1.7, color: 0x0000CD, position: { x: 12, y: 0, z: 0 }, rotationSpeed: 0.0035 },
-      { radius: 0.7, color: 0x8B4513, position: { x: 16, y: 0, z: 0 }, rotationSpeed: 0.004 }
+      { 
+        name: "Mercury",
+        radius: 0.38,
+        color: 0xC0C0C0,
+        orbitRadius: 8,
+        rotationSpeed: 0.05,
+        revolutionSpeed: 0.04
+      },
+      { 
+        name: "Venus",
+        radius: 0.95,
+        color: 0xFFC649,
+        orbitRadius: 14,
+        rotationSpeed: -0.04,
+        revolutionSpeed: 0.03
+      },
+      { 
+        name: "Earth",
+        radius: 1,
+        color: 0x4169E1,
+        orbitRadius: 20,
+        rotationSpeed: 0.035,
+        revolutionSpeed: 0.025
+      },
+      { 
+        name: "Mars",
+        radius: 0.53,
+        color: 0xFF4500,
+        orbitRadius: 26,
+        rotationSpeed: 0.03,
+        revolutionSpeed: 0.02
+      },
+      { 
+        name: "Jupiter",
+        radius: 2.2,
+        color: 0xD2691E,
+        orbitRadius: 36,
+        rotationSpeed: 0.065,
+        revolutionSpeed: 0.01
+      },
+      { 
+        name: "Saturn",
+        radius: 2.0,
+        color: 0xDAA520,
+        orbitRadius: 46,
+        rotationSpeed: 0.06,
+        revolutionSpeed: 0.008
+      },
+      { 
+        name: "Uranus",
+        radius: 1.5,
+        color: 0x40E0D0,
+        orbitRadius: 56,
+        rotationSpeed: -0.05,
+        revolutionSpeed: 0.006
+      },
+      { 
+        name: "Neptune",
+        radius: 1.4,
+        color: 0x191970,
+        orbitRadius: 64,
+        rotationSpeed: 0.045,
+        revolutionSpeed: 0.005
+      }
     ];
 
+    const sun = createSun();
     const planets = planetsData.map(makeInstance);
+    planetsData.forEach(planet => createOrbit(planet.orbitRadius));
 
-    // Add orbit lines for each planet
-    planetsData.forEach(planet => {
-      if (planet.position.x !== 0) { // Exclude the sun
-        createOrbit(Math.abs(planet.position.x));
-      }
-    });
+    // Create stars in random positions
+    function createStar() {
+      const starGeometry = new THREE.SphereGeometry(0.2, 9, 9);
+      const starMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+      const star = new THREE.Mesh(starGeometry, starMaterial);
 
-    // Animation loop
-    function animate(time) {
-      time *= 0.001; // Convert time to seconds
+      // Random position for stars within a range
+      star.position.set(
+        Math.random() * 200 - 100, // X position in the range [-100, 100]
+        Math.random() * 200 - 100, // Y position in the range [-100, 100]
+        Math.random() * 200 - 100  // Z position in the range [-100, 100]
+      );
+      scene.add(star);
+    }
+
+    // Create 10-15 stars
+    for (let i = 0; i < 100; i++) {
+      createStar();
+    }
+
+    let lastTime = 0;
+    function animate(currentTime) {
+      const deltaTime = (currentTime - lastTime) / 1000;
+      lastTime = currentTime;
+
+      sun.rotation.y += 0.005;
 
       planets.forEach((planet) => {
-        planet.rotation.y += planet.rotationSpeed;
+        planet.mesh.rotation.y += planet.rotationSpeed;
+        planet.pivot.rotation.y += planet.revolutionSpeed;
       });
 
       controls.update();
       renderer.render(scene, camera);
       requestAnimationFrame(animate);
     }
+
     requestAnimationFrame(animate);
 
-    // Resize handler
     function handleResize() {
       const width = window.innerWidth;
       const height = window.innerHeight;
@@ -117,16 +227,10 @@ const Sphere = () => {
     }
 
     window.addEventListener("resize", handleResize);
-    controls.addEventListener("change", () => requestAnimationFrame(animate));
 
-    // Cleanup
     return () => {
       window.removeEventListener("resize", handleResize);
       controls.dispose();
-      planets.forEach(planet => {
-        planet.geometry.dispose();
-        planet.material.dispose();
-      });
       renderer.dispose();
     };
   }, []);
@@ -135,7 +239,9 @@ const Sphere = () => {
 };
 
 const Antarikshya = () => {
-  return <Sphere />;
+  return (
+    <Sphere />
+  );
 };
 
 export default Antarikshya;
